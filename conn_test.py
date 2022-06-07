@@ -11,7 +11,7 @@ stats = NCAALiveStats()
 params = {
     "type": "parameters",
     "types": "se,ac,mi,te,sc,box,pbp",
-    "playbyplayOnConnect": 1
+    "playbyplayOnConnect": 1,
 }
 
 sock.connect(("10.211.55.4", 7677))

@@ -15,8 +15,7 @@ class FromDictMixin:
     @classmethod
     def from_dict(cls, message: dict):
         renamed_dict = {
-            inflection.underscore(k.lstrip("s")): v
-            for k, v in message.items()
+            inflection.underscore(k.lstrip("s")): v for k, v in message.items()
         }
         return cls(**renamed_dict)
 
@@ -124,7 +123,6 @@ class TeamStats(FromDictMixin):
     two_pointers_attempted: int = 0
     two_pointers_made: int = 0
     two_pointers_percentage: float = 0.0
-    
 
 
 @dataclass
@@ -133,6 +131,7 @@ class TeamScore:
     timeouts_remaining: int
     fouls: int
     team_fouls: int
+
 
 @dataclass
 class Player:

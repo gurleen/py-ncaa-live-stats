@@ -60,6 +60,7 @@ class NCAALiveStats:
     """Parser and datastore for messages from 
     Genius Sports' NCAA Live Stats platform.
     """
+
     _game: structs.Game
     _last_ping_dt: datetime
     _teams_loaded: bool = False
@@ -78,7 +79,9 @@ class NCAALiveStats:
     def _receive_status(self, message: dict) -> None:
         self._game.status = extract(message, "status", structs.GameStatus)
         self._game.current_period = extract(message, "period.current", int)
-        self._game.period_status = extract(message, "period.periodType", structs.PeriodType)
+        self._game.period_status = extract(
+            message, "period.periodType", structs.PeriodType
+        )
         self._game.clock = extract(message, "clock")
         self._game.shot_clock = extract(message, "shotClock")
         self._game.clock_running = extract(message, "clockRunning", bool)
@@ -106,7 +109,7 @@ class NCAALiveStats:
                 is_starter=extract(player, "starter", bool),
                 is_captain=extract(player, "captain", bool),
                 is_active=extract(player, "active", bool),
-                stats=structs.PlayerStats()
+                stats=structs.PlayerStats(),
             )
             player_object_map[player_obj.pno] = player_obj
         return player_object_map
@@ -123,7 +126,7 @@ class NCAALiveStats:
                 long_code=extract(team, "detail.teamCodeLong"),
                 is_home=extract(team, "detail.isHomeCompetitor", bool),
                 players=parsed_players,
-                game_stats=structs.TeamStats()
+                game_stats=structs.TeamStats(),
             )
             if team_obj.is_home:
                 self._game.home_team = team_obj
@@ -135,7 +138,7 @@ class NCAALiveStats:
         for player in players:
             player_num = player.pop("pno")
             team.players[player_num].stats.update_from_dict(player, strip="s")
-    
+
     def _receive_boxscore(self, message: dict) -> None:
         teams = message.get("teams")
         for team in teams:
@@ -161,7 +164,7 @@ class NCAALiveStats:
             previous_action=extract(message, "previousAction", int),
             x=extract(message, "x", float),
             y=extract(message, "y", float),
-            area=extract(message, "area")
+            area=extract(message, "area"),
         )
         self._game.actions.append(action)
 
