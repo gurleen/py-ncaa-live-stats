@@ -62,9 +62,14 @@ class NCAALiveStats:
     """
     _game: structs.Game
     _last_ping_dt: datetime
+    _teams_loaded: bool = False
+
+    @property
+    def is_ready(self):
+        return self._teams_loaded
 
     def __init__(self) -> None:
-        pass
+        self._game = structs.Game(actions=[])
 
     def _receive_ping(self, message: dict) -> None:
         timestamp: str = message.get("timestamp")[:-3]
@@ -88,8 +93,8 @@ class NCAALiveStats:
     def _receive_match_information(self, message: dict) -> None:
         pass
 
-    def _parse_players(self, players: list[dict]) -> list[structs.Player]:
-        player_object_list = []
+    def _parse_players(self, players: list[dict]) -> dict[int, structs.Player]:
+        player_object_map = {}
         for player in players:
             player_obj = structs.Player(
                 pno=extract(player, "pno", int),
@@ -100,10 +105,11 @@ class NCAALiveStats:
                 position=extract(player, "playingPosition"),
                 is_starter=extract(player, "starter", bool),
                 is_captain=extract(player, "captain", bool),
-                is_active=extract(player, "active", bool)
+                is_active=extract(player, "active", bool),
+                stats=structs.PlayerStats()
             )
-            player_object_list.append(player_obj)
-        return player_object_list
+            player_object_map[player_obj.pno] = player_obj
+        return player_object_map
 
     def _receive_teams(self, message: dict) -> None:
         teams = message.get("teams")
@@ -116,16 +122,57 @@ class NCAALiveStats:
                 code=extract(team, "detail.teamCode"),
                 long_code=extract(team, "detail.teamCodeLong"),
                 is_home=extract(team, "detail.isHomeCompetitor", bool),
-                players=parsed_players
+                players=parsed_players,
+                game_stats=structs.TeamStats()
             )
             if team_obj.is_home:
                 self._game.home_team = team_obj
             else:
                 self._game.away_team = team_obj
+        self._teams_loaded = True
 
+    def _parse_players_boxscore(self, team: structs.Team, players: list[dict]) -> None:
+        for player in players:
+            player_num = player.pop("pno")
+            team.players[player_num].stats.update_from_dict(player, strip="s")
+    
+    def _receive_boxscore(self, message: dict) -> None:
+        teams = message.get("teams")
+        for team in teams:
+            team_number = team.get("teamNumber")
+            team_obj = self._game.get_team_by_number(team_number)
+            player_stats = team.get("total").get("players")
+            self._parse_players_boxscore(team_obj, player_stats)
+
+    def _receive_action(self, message: dict) -> None:
+        action = structs.Action(
+            action_number=extract(message, "actionNumber", int),
+            team_number=extract(message, "teamNumber", int),
+            player_number=extract(message, "pno", int),
+            clock=extract(message, "clock"),
+            shot_clock=extract(message, "shotClock"),
+            time_actual=extract(message, "timeActual", dt_parse),
+            period=extract(message, "period", int),
+            period_type=extract(message, "periodType", structs.PeriodType),
+            action_type=extract(message, "actionType", structs.ActionType.from_str),
+            sub_type=extract(message, "subType"),
+            qualifiers=message.get("qualifiers"),
+            value=extract(message, "value"),
+            previous_action=extract(message, "previousAction", int),
+            x=extract(message, "x", float),
+            y=extract(message, "y", float),
+            area=extract(message, "area")
+        )
+        self._game.actions.append(action)
+
+    def _receive_playbyplay(self, message: dict) -> None:
+        actions = message.get("actions", [])
+        for action in actions:
+            self._receive_action(action)
 
     def receive(self, message: dict) -> None:
         message_type: str = inflection.underscore(message.get("type"))
+        logger.info(f"Received message type {message_type}")
         handler_name = f"_receive_{message_type}"
         handler: Callable = getattr(self, handler_name, None)
         if handler:
