@@ -1,11 +1,15 @@
-from . import structs
-from datetime import datetime
-from dateutil.parser import parse as dt_parse
-from typing import Any, Callable, TypeVar
-from loguru import logger
-import inflection
+from inspect import isfunction
 import traceback
+from dataclasses import asdict
+from datetime import datetime
+from typing import Any, Callable, Literal, TypeVar
 
+import inflection
+from dateutil.parser import parse as dt_parse
+from loguru import logger
+
+from . import structs
+from ncaa_live_stats.compose.message import compose_action_message
 
 T = TypeVar("T")
 
@@ -69,6 +73,13 @@ class NCAALiveStats:
     def is_ready(self):
         return self._teams_loaded
 
+    @property
+    def as_dict(self, kind: Literal["all", "actions"] = "all") -> dict:
+        if kind == "all":
+            return asdict(self._game)
+        elif kind == "actions":
+            return asdict(self._game.actions)
+
     def __init__(self) -> None:
         self._game = structs.Game(actions=[])
 
@@ -101,8 +112,8 @@ class NCAALiveStats:
         for player in players:
             player_obj = structs.Player(
                 pno=extract(player, "pno", int),
-                first_name=extract(player, "firstName"),
-                last_name=extract(player, "familyName"),
+                first_name=extract(player, "firstName").strip(),
+                last_name=extract(player, "familyName").strip(),
                 height=extract(player, "height", float),
                 shirt=extract(player, "shirtNumber"),
                 position=extract(player, "playingPosition"),
@@ -136,11 +147,11 @@ class NCAALiveStats:
 
     def _parse_players_boxscore(self, team: structs.Team, players: list[dict]) -> None:
         for player in players:
-            player_num = player.pop("pno")
+            player_num = extract(player, "pno", int)
             team.players[player_num].stats.update_from_dict(player, strip="s")
 
     def _receive_boxscore(self, message: dict) -> None:
-        teams = message.get("teams")
+        teams: list[dict] = message.get("teams")
         for team in teams:
             team_number = team.get("teamNumber")
             team_obj = self._game.get_team_by_number(team_number)
@@ -159,23 +170,34 @@ class NCAALiveStats:
             period_type=extract(message, "periodType", structs.PeriodType),
             action_type=extract(message, "actionType", structs.ActionType.from_str),
             sub_type=extract(message, "subType"),
-            qualifiers=message.get("qualifiers"),
+            qualifiers=message.get("qualifiers", []),
             value=extract(message, "value"),
             previous_action=extract(message, "previousAction", int),
             x=extract(message, "x", float),
             y=extract(message, "y", float),
             area=extract(message, "area"),
         )
+
+        message = compose_action_message(action, self._game)
         self._game.actions.append(action)
+
+        if message != "":
+            print(message)
 
     def _receive_playbyplay(self, message: dict) -> None:
         actions = message.get("actions", [])
         for action in actions:
-            self._receive_action(action)
+            try:
+                self._receive_action(action)
+            except Exception as e:
+                logger.error(f"Error handling action in play-by-play.")
+                logger.error(action)
+                logger.trace(traceback.format_exc())
 
     def receive(self, message: dict) -> None:
         message_type: str = inflection.underscore(message.get("type"))
-        logger.info(f"Received message type {message_type}")
+        if message_type != "ping":
+            logger.info(f"Received message type {message_type}")
         handler_name = f"_receive_{message_type}"
         handler: Callable = getattr(self, handler_name, None)
         if handler:
@@ -183,6 +205,7 @@ class NCAALiveStats:
                 handler(message)
             except Exception as e:
                 logger.error(f"Error handling message type {message_type}")
-                print(traceback.format_exc())
+                logger.error(message)
+                logger.error(traceback.format_exc())
         else:
             logger.error(f"Unknown message type {message_type}")

@@ -6,6 +6,14 @@ from loguru import logger
 from datetime import datetime
 
 
+PERIOD_EXPAND = {
+    1: "1st",
+    2: "2nd",
+    3: "3rd",
+    4: "4th"
+}
+
+
 class AutoEnum(Enum):
     def _generate_next_value_(name, start, count, last_values):
         return name
@@ -15,23 +23,42 @@ class FromDictMixin:
     @classmethod
     def from_dict(cls, message: dict):
         renamed_dict = {
-            inflection.underscore(k.lstrip("s")): v for k, v in message.items()
+            inflection.underscore(k.lstrip("s")): v.strip() for k, v in message.items()
         }
         return cls(**renamed_dict)
 
     def update_from_dict(self, message: dict, strip: str = ""):
         annotations = self.__annotations__
+        should_update = False
         for key, value in message.items():
             normal_key = inflection.underscore(key.lstrip(strip))
             cast_type = annotations.get(normal_key)
             if cast_type is not None:
-                setattr(self, normal_key, cast_type(value))
+                cast_value = cast_type(value)
+                if cast_value != getattr(self, normal_key):
+                    setattr(self, normal_key, cast_value)
+                    should_update = True
             else:
                 logger.warning(f"Unknown field {normal_key} found on {self.__class__}")
 
 
+class StatsMixin:
+
+    @property
+    def field_goals_fraction(self) -> str:
+        return f"{self.field_goals_made}/{self.field_goals_attempted}"
+
+    @property
+    def three_points_fraction(self) -> str:
+        return f"{self.three_pointers_made}/{self.three_pointers_attempted}"
+
+    @property
+    def free_throws_fraction(self) -> str:
+        return f"{self.free_throws_made}/{self.free_throws_attempted}"
+
+
 @dataclass
-class PlayerStats(FromDictMixin):
+class PlayerStats(FromDictMixin, StatsMixin):
     assists: int = 0
     blocks_received: int = 0
     blocks: int = 0
@@ -75,7 +102,7 @@ class PlayerStats(FromDictMixin):
 
 
 @dataclass
-class TeamStats(FromDictMixin):
+class TeamStats(FromDictMixin, StatsMixin):
     assists: int = 0
     bench_points: int = 0
     biggest_lead: int = 0
@@ -146,6 +173,10 @@ class Player:
     is_active: bool
     stats: PlayerStats = None
 
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
 
 @dataclass
 class Team:
@@ -207,6 +238,7 @@ class ActionType(AutoEnum):
     TURNOVER = auto()
     SUBSTITUTION = auto()
     POSSESSIONCHANGE = auto()
+    CLOCK = auto()
 
     @classmethod
     def from_str(cls, value: str) -> "ActionType":
@@ -228,10 +260,20 @@ class Action:
     sub_type: str
     qualifiers: list[str]
     value: Optional[str]
-    previous_action: Optional[int]
     x: float
     y: float
     area: str
+    previous_action: Optional[int] = None
+
+    @property
+    def clock_norm(self) -> str:
+        return self.clock[:-3]
+
+    @property
+    def period_norm(self) -> str:
+        if self.period_type == PeriodType.OVERTIME:
+            return "OT" if self.period == 1 else f"OT{self.period}"
+        return inflection.ordinalize(self.period)
 
 
 @dataclass()
@@ -249,7 +291,7 @@ class Game:
     possession: Literal[0, 1, 2] = None
     possession_arrow: Literal[0, 1, 2] = None
 
-    def get_team_by_number(self, number: int) -> "Game":
+    def get_team_by_number(self, number: int) -> "Team":
         if self.home_team.number == number:
             return self.home_team
         elif self.away_team.number == number:
