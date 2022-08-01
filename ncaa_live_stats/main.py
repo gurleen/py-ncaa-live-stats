@@ -1,8 +1,8 @@
-from inspect import isfunction
+from collections import defaultdict
 import traceback
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, Callable, Literal, TypeVar
+from typing import Any, Callable, List, Literal, TypeVar, DefaultDict
 
 import inflection
 from dateutil.parser import parse as dt_parse
@@ -65,9 +65,11 @@ class NCAALiveStats:
     Genius Sports' NCAA Live Stats platform.
     """
 
+    _debug: bool
     _game: structs.Game
     _last_ping_dt: datetime
     _teams_loaded: bool = False
+    _listeners: DefaultDict[str, List[Callable]]
 
     @property
     def is_ready(self):
@@ -80,8 +82,17 @@ class NCAALiveStats:
         elif kind == "actions":
             return asdict(self._game.actions)
 
-    def __init__(self) -> None:
+    def __init__(self, debug: bool = False) -> None:
         self._game = structs.Game(actions=[])
+        self._listeners = defaultdict(list)
+        self._debug = debug
+
+    def add_listener(self, message_type: str, func: Callable) -> None:
+        """
+        Add a callback function to the handling of a specific `message_type`.
+        The function must accept one argument of type `structs.Game`.
+        """
+        self._listeners[message_type].append(func)
 
     def _receive_ping(self, message: dict) -> None:
         timestamp: str = message.get("timestamp")[:-3]
@@ -176,6 +187,7 @@ class NCAALiveStats:
             x=extract(message, "x", float),
             y=extract(message, "y", float),
             area=extract(message, "area"),
+            success=extract(message, "success", bool),
         )
 
         message = compose_action_message(action, self._game)
@@ -191,10 +203,14 @@ class NCAALiveStats:
                 self._receive_action(action)
             except Exception as e:
                 logger.error(f"Error handling action in play-by-play.")
-                logger.error(action)
-                logger.trace(traceback.format_exc())
+                if self._debug:
+                    logger.error(action)
+                    logger.trace(traceback.format_exc())
 
     def receive(self, message: dict) -> None:
+        """
+        Parse a message from the Genius Sports TV feed as json.
+        """
         message_type: str = inflection.underscore(message.get("type"))
         if message_type != "ping":
             logger.info(f"Received message type {message_type}")
@@ -205,7 +221,12 @@ class NCAALiveStats:
                 handler(message)
             except Exception as e:
                 logger.error(f"Error handling message type {message_type}")
-                logger.error(message)
-                logger.error(traceback.format_exc())
+                if self._debug:
+                    logger.error(message)
+                    logger.error(traceback.format_exc())
         else:
             logger.error(f"Unknown message type {message_type}")
+
+        listeners = self._listeners[message_type]
+        for func in listeners:
+            func(self._game)

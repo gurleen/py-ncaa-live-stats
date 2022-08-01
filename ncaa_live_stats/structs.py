@@ -6,12 +6,7 @@ from loguru import logger
 from datetime import datetime
 
 
-PERIOD_EXPAND = {
-    1: "1st",
-    2: "2nd",
-    3: "3rd",
-    4: "4th"
-}
+PERIOD_EXPAND = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
 
 class AutoEnum(Enum):
@@ -39,11 +34,10 @@ class FromDictMixin:
                     setattr(self, normal_key, cast_value)
                     should_update = True
             else:
-                logger.warning(f"Unknown field {normal_key} found on {self.__class__}")
+                logger.debug(f"Unknown field {normal_key} found on {self.__class__}")
 
 
 class StatsMixin:
-
     @property
     def field_goals_fraction(self) -> str:
         return f"{self.field_goals_made}/{self.field_goals_attempted}"
@@ -263,6 +257,7 @@ class Action:
     x: float
     y: float
     area: str
+    success: bool
     previous_action: Optional[int] = None
 
     @property
@@ -274,6 +269,23 @@ class Action:
         if self.period_type == PeriodType.OVERTIME:
             return "OT" if self.period == 1 else f"OT{self.period}"
         return inflection.ordinalize(self.period)
+
+    @property
+    def is_scoring_play(self) -> bool:
+        return (
+            self.action_type
+            in [ActionType.TWOPT, ActionType.THREEPT, ActionType.FREETHROW]
+            and self.success
+        )
+
+    @property
+    def is_non_free_throw_scoring_play(self) -> bool:
+        return (
+            self.action_type in [ActionType.TWOPT, ActionType.THREEPT] and self.success
+        )
+
+    def get_team(self, game: "Game") -> Team:
+        return game.get_team_by_number(self.team_number)
 
 
 @dataclass()

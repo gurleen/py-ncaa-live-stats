@@ -29,28 +29,30 @@ EXPANSIONS = {
     "benchclassb": "bench class B",
     "coachclassb": "coach class B",
     "coachindirect": "coach indirect",
-    "contactdeadball": "dead ball contact"
+    "contactdeadball": "dead ball contact",
 }
 
 ACTION_LITERALS = {
     ActionType.TWOPT: "two point",
     ActionType.THREEPT: "three point",
-    ActionType.FREETHROW: "free throw"
+    ActionType.FREETHROW: "free throw",
 }
 
+
 class term:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
 
 # HELPER FUNCTIONS
+
 
 def capitalize(s: str) -> str:
     """Capitalize first letter of a string.
@@ -75,6 +77,7 @@ def expand(s: str) -> str:
     """
     return EXPANSIONS.get(s, s)
 
+
 # HANDLERS
 
 
@@ -84,12 +87,15 @@ def get_action_player(action: Action, game: Game) -> Optional[Player]:
     except KeyError:
         return None
 
+
 def get_action_code(action: Action, game: Game) -> str:
     return game.get_team_by_number(action.team_number).code
+
 
 def get_player_string(action: Action, game: Game) -> str:
     player = get_action_player(action, game)
     return f"{term.UNDERLINE}{term.BOLD}{player.full_name} [{get_action_code(action, game)}]{term.ENDC}"
+
 
 def compose_scoring_play(action: Action, game: Game) -> str:
     play_type = ACTION_LITERALS.get(action.action_type, "")
@@ -124,7 +130,7 @@ def compose_rebound(action: Action, game: Game) -> str:
 def compose_foulon(action: Action, game: Game) -> str:
     player = get_player_string(action, game)
     return f"Foul drawn by {player}."
-    
+
 
 def compose_foul(action: Action, game: Game) -> str:
     if action.player_number == 0 or action.player_number == None:
@@ -144,7 +150,7 @@ def compose_foul(action: Action, game: Game) -> str:
             qualifiers.remove(ft_kind)
             response += f" Shooting {expand(ft_kind)}."
             break
-    
+
     if len(qualifiers) > 0:
         response += f" Foul classified as {expand(qualifiers.pop())}."
 
@@ -173,7 +179,7 @@ MESSAGES: dict[ActionType, Callable] = {
     ActionType.REBOUND: compose_rebound,
     ActionType.FOULON: compose_foulon,
     ActionType.FOUL: compose_foul,
-    ActionType.TIMEOUT: compose_timeout
+    ActionType.TIMEOUT: compose_timeout,
 }
 
 
