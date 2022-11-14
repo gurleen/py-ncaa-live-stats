@@ -1,4 +1,3 @@
-from typing import Union
 from ..structs import Player
 
 

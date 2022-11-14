@@ -43,7 +43,7 @@ params = {
     "playbyplayOnConnect": 1,
 }
 
-sock.connect(("10.211.55.4", 7677))
+sock.connect(("10.250.37.65", 7677))
 sock.sendall(json.dumps(params).encode("utf-8"))
 bsock = BufferedSocket(sock, maxsize=2097152, timeout=None)
 

@@ -4,13 +4,14 @@ from typing import Literal, Optional
 import inflection
 from loguru import logger
 from datetime import datetime
+from first import first
 
 
 PERIOD_EXPAND = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
 
 class AutoEnum(Enum):
-    def _generate_next_value_(name, start, count, last_values):
+    def _generate_next_value_(name, _, __, ___):
         return name
 
 
@@ -24,7 +25,6 @@ class FromDictMixin:
 
     def update_from_dict(self, message: dict, strip: str = ""):
         annotations = self.__annotations__
-        should_update = False
         for key, value in message.items():
             normal_key = inflection.underscore(key.lstrip(strip))
             cast_type = annotations.get(normal_key)
@@ -32,7 +32,6 @@ class FromDictMixin:
                 cast_value = cast_type(value)
                 if cast_value != getattr(self, normal_key):
                     setattr(self, normal_key, cast_value)
-                    should_update = True
             else:
                 logger.debug(f"Unknown field {normal_key} found on {self.__class__}")
 
@@ -73,6 +72,7 @@ class PlayerStats(FromDictMixin, StatsMixin):
     minutes: float = 0.0
     plus_minus_points: float = 0.0
     plus: int = 0
+    pno: int = 0
     points_fast_break: int = 0
     points_from_turnovers: int = 0
     points_in_the_paint_made: int = 0
@@ -183,6 +183,9 @@ class Team:
     game_stats: TeamStats = None
     period_stats: dict[int, TeamStats] = None
     score: TeamScore = None
+
+    def get_player_by_shirt(self, num: int) -> Player:
+        return first(self.players.values(), key=lambda p: p.shirt == num)
 
 
 class GameStatus(AutoEnum):
