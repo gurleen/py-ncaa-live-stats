@@ -169,6 +169,9 @@ class NCAALiveStats:
             player_stats = team.get("total").get("players")
             self._parse_players_boxscore(team_obj, player_stats)
 
+            team_stats = team.get("total").get("team")
+            team_obj.game_stats.update_from_dict(team_stats)
+
     def _receive_action(self, message: dict) -> None:
         action = structs.Action(
             action_number=extract(message, "actionNumber", int),
