@@ -19,7 +19,7 @@ class FromDictMixin:
     @classmethod
     def from_dict(cls, message: dict):
         renamed_dict = {
-            inflection.underscore(k.lstrip("s")): v.strip() for k, v in message.items()
+            inflection.underscore(k.lstrip("s").lstrip("s_")): v.strip() for k, v in message.items()
         }
         return cls(**renamed_dict)
 
